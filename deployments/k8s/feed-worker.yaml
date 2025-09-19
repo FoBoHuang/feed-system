@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feed-worker
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: feed-worker
+  template:
+    metadata:
+      labels:
+        app: feed-worker
+        app.kubernetes.io/name: feed-system
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+      - name: feed-worker
+        image: feed-system/worker:latest
+        env:
+        - name: CONFIG_PATH
+          value: "/root/configs/config.yaml"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /root/configs
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "ps aux | grep feed-worker | grep -v grep"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: config-volume
+        configMap:
+          name: feed-config
+
+---
+apiVersion: v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: feed-worker-hpa
+  namespace: feed-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: feed-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

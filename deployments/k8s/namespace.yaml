@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: feed-system
+  labels:
+    name: feed-system
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: namespace

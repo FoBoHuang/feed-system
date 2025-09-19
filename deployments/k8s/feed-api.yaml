@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: feed-api-service
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app: feed-api
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feed-api
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: feed-api
+  template:
+    metadata:
+      labels:
+        app: feed-api
+        app.kubernetes.io/name: feed-system
+        app.kubernetes.io/component: api
+    spec:
+      containers:
+      - name: feed-api
+        image: feed-system/api:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: CONFIG_PATH
+          value: "/root/configs/config.yaml"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /root/configs
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config-volume
+        configMap:
+          name: feed-config
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: feed-api-ingress
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: api
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: feed-system.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: feed-api-service
+            port:
+              number: 80

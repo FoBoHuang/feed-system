@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: feed-api-monitor
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: feed-api
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: feed-worker-monitor
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: feed-worker
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-feed-system
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  feed-system-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Feed System Dashboard",
+        "tags": ["feed-system"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "API Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total{job=\"feed-api\"}[5m])",
+                "legendFormat": "{{method}} {{status}}"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Feed Generation Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(feed_generation_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Worker Queue Depth",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "kafka_consumer_lag_sum{job=\"feed-worker\"}",
+                "legendFormat": "Consumer Lag"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: feed-system-alerts
+  namespace: feed-system
+  labels:
+    app.kubernetes.io/name: feed-system
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+  - name: feed-system
+    interval: 30s
+    rules:
+    - alert: FeedAPIHighErrorRate
+      expr: rate(http_requests_total{job="feed-api",status=~"5.."}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate in Feed API"
+        description: "Feed API error rate is {{ $value }} errors per second"
+
+    - alert: FeedWorkerHighLag
+      expr: kafka_consumer_lag_sum{job="feed-worker"} > 1000
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High Kafka consumer lag"
+        description: "Feed worker consumer lag is {{ $value }} messages"
+
+    - alert: DatabaseConnectionFailure
+      expr: up{job="postgres"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Database connection failure"
+        description: "PostgreSQL database is down"
+
+    - alert: RedisConnectionFailure
+      expr: up{job="redis"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Redis connection failure"
+        description: "Redis cache is down"
+
+    - alert: KafkaConnectionFailure
+      expr: up{job="kafka"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kafka connection failure"
+        description: "Kafka message broker is down"

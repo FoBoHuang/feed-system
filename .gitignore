@@ -1,0 +1,118 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Build output
+bin/
+dist/
+build/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage files
+coverage.out
+coverage.html
+*.cover
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker volumes
+docker-volumes/
+
+# Kubernetes secrets
+*.secret
+*.key
+*.crt
+
+# Configuration files (except examples)
+configs/config.yaml
+configs/*.local.yaml
+!configs/config.example.yaml
+
+# Upload files
+uploads/
+static/uploads/
+
+# Cache files
+.cache/
+
+# Vendor directory
+vendor/
+
+# Go mod cache
+$GOPATH/pkg/mod/
+
+# Local development
+local/
+dev/
+
+# Backup files
+*.bak
+*.backup
+
+# Node modules (if any frontend)
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Java
+*.class
+*.jar
+
+# Backup files created by editors
+*~
+*.bak
+
+# Files that might appear on external disks
+.Spotlight-V100
+.Trashes
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
