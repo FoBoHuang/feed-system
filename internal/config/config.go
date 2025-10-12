@@ -61,10 +61,55 @@ type JWTConfig struct {
 }
 
 type FeedConfig struct {
-	PushThreshold       int           `mapstructure:"push_threshold"`        // 推模式阈值
-	CacheTTL           time.Duration `mapstructure:"cache_ttl"`
-	MaxFeedSize        int           `mapstructure:"max_feed_size"`
-	RankUpdateInterval time.Duration `mapstructure:"rank_update_interval"`
+	PushThreshold      int                `mapstructure:"push_threshold"` // 推模式阈值
+	CacheTTL           time.Duration      `mapstructure:"cache_ttl"`
+	MaxFeedSize        int                `mapstructure:"max_feed_size"`
+	RankUpdateInterval time.Duration      `mapstructure:"rank_update_interval"`
+	Optimization       OptimizationConfig `mapstructure:"optimization"` // 优化配置
+}
+
+// OptimizationConfig 优化配置
+type OptimizationConfig struct {
+	ActiveUser    UserCacheConfig `mapstructure:"active_user"`
+	InactiveUser  UserCacheConfig `mapstructure:"inactive_user"`
+	VIPUser       UserCacheConfig `mapstructure:"vip_user"`
+	Recovery      RecoveryConfig  `mapstructure:"recovery"`
+	CacheCleanup  CleanupConfig   `mapstructure:"cache_cleanup"`
+	ActivityDecay DecayConfig     `mapstructure:"activity_decay"`
+	Timeline      TimelineConfig  `mapstructure:"timeline"`
+}
+
+// UserCacheConfig 用户缓存配置
+type UserCacheConfig struct {
+	ScoreThreshold   float64 `mapstructure:"score_threshold"`
+	CacheHours       int     `mapstructure:"cache_hours"`
+	MaxTimelineItems int     `mapstructure:"max_timeline_items"`
+}
+
+// RecoveryConfig 崩溃恢复配置
+type RecoveryConfig struct {
+	CheckInterval int `mapstructure:"check_interval"`
+	TaskTimeout   int `mapstructure:"task_timeout"`
+}
+
+// CleanupConfig 缓存清理配置
+type CleanupConfig struct {
+	Interval  int `mapstructure:"interval"`
+	BatchSize int `mapstructure:"batch_size"`
+}
+
+// DecayConfig 活跃度衰减配置
+type DecayConfig struct {
+	DecayFactor float64 `mapstructure:"decay_factor"`
+	Interval    int     `mapstructure:"interval"`
+	MaxScore    float64 `mapstructure:"max_score"`
+}
+
+// TimelineConfig Timeline配置
+type TimelineConfig struct {
+	DefaultTTL      int `mapstructure:"default_ttl"`
+	MaxItems        int `mapstructure:"max_items"`
+	CleanupInterval int `mapstructure:"cleanup_interval"`
 }
 
 func LoadConfig() (*Config, error) {

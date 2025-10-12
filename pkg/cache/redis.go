@@ -89,6 +89,10 @@ func (r *RedisClient) ZCard(ctx context.Context, key string) (int64, error) {
 	return r.client.ZCard(ctx, key).Result()
 }
 
+func (r *RedisClient) ZScore(ctx context.Context, key, member string) (float64, error) {
+	return r.client.ZScore(ctx, key, member).Result()
+}
+
 func (r *RedisClient) HSet(ctx context.Context, key string, values ...interface{}) error {
 	return r.client.HSet(ctx, key, values...).Err()
 }
@@ -107,6 +111,18 @@ func (r *RedisClient) HDel(ctx context.Context, key string, fields ...string) er
 
 func (r *RedisClient) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	return r.client.Expire(ctx, key, expiration).Err()
+}
+
+func (r *RedisClient) ZRemRangeByRank(ctx context.Context, key string, start, stop int64) error {
+	return r.client.ZRemRangeByRank(ctx, key, start, stop).Err()
+}
+
+func (r *RedisClient) ZRevRangeByScoreWithScores(ctx context.Context, key string, opt *redis.ZRangeBy) ([]redis.Z, error) {
+	return r.client.ZRevRangeByScoreWithScores(ctx, key, opt).Result()
+}
+
+func (r *RedisClient) Pipeline() redis.Pipeliner {
+	return r.client.Pipeline()
 }
 
 func (r *RedisClient) Close() error {

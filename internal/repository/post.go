@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/feed-system/feed-system/internal/models"
 	"github.com/google/uuid"
@@ -56,6 +57,42 @@ func (r *PostRepository) Update(ctx context.Context, post *models.Post) error {
 		return fmt.Errorf("failed to update post: %w", err)
 	}
 	return nil
+}
+
+// GetByIDs 根据ID列表批量获取帖子
+func (r *PostRepository) GetByIDs(ctx context.Context, postIDs []uuid.UUID) ([]*models.Post, error) {
+	var posts []*models.Post
+	if err := r.db.WithContext(ctx).
+		Preload("User").
+		Where("id IN (?)", postIDs).
+		Where("is_deleted = ?", false).
+		Find(&posts).Error; err != nil {
+		return nil, fmt.Errorf("failed to get posts by IDs: %w", err)
+	}
+	return posts, nil
+}
+
+// GetPostsByUserIDs 根据用户ID列表获取帖子（用于拉模式）
+func (r *PostRepository) GetPostsByUserIDs(ctx context.Context, userIDs []uuid.UUID, cursor string, limit int) ([]*models.Post, error) {
+	var posts []*models.Post
+	db := r.db.WithContext(ctx).
+		Preload("User").
+		Where("user_id IN (?)", userIDs).
+		Where("is_deleted = ?", false)
+
+	// 处理游标分页
+	if cursor != "" {
+		if cursorTime, err := time.Parse(time.RFC3339Nano, cursor); err == nil {
+			db = db.Where("created_at < ?", cursorTime)
+		}
+	}
+
+	if err := db.Order("created_at DESC").
+		Limit(limit).
+		Find(&posts).Error; err != nil {
+		return nil, fmt.Errorf("failed to get posts by user IDs: %w", err)
+	}
+	return posts, nil
 }
 
 func (r *PostRepository) Delete(ctx context.Context, id uuid.UUID) error {

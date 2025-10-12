@@ -85,8 +85,18 @@ func main() {
 	likeService := services.NewLikeService(postRepo, likeRepo, userRepo, feedEventsProducer, logger)
 	commentService := services.NewCommentService(postRepo, commentRepo, userRepo, feedEventsProducer, logger)
 
-	// 初始化工作处理器
+	// 初始化优化版服务（新增）
+	activityService := services.NewActivityService(userRepo, redisClient, logger)
+	timelineCacheService := services.NewTimelineCacheService(redisClient, logger)
+	cacheStrategyService := services.NewCacheStrategyService(redisClient, &cfg.Feed, logger, activityService, timelineCacheService)
+	recoveryService := services.NewRecoveryService(postRepo, userRepo, followRepo, redisClient, logger, activityService, timelineCacheService)
+	optimizedFeedService := services.NewOptimizedFeedService(postRepo, timelineRepo, userRepo, followRepo, likeRepo, commentRepo, redisClient, feedEventsProducer, &cfg.Feed, logger, activityService, timelineCacheService)
+
+	// 初始化工作处理器（原版）
 	feedWorker := workers.NewFeedWorker(feedService, userService, postRepo, timelineRepo, followRepo, userRepo, redisClient, feedEventsConsumer, logger)
+
+	// 初始化优化版工作处理器（新增）
+	optimizedFeedWorker := workers.NewOptimizedFeedWorker(feedEventsConsumer, logger, cfg, activityService, timelineCacheService, cacheStrategyService, recoveryService, optimizedFeedService)
 
 	// 启动工作处理器
 	go func() {
@@ -95,9 +105,19 @@ func main() {
 		}
 	}()
 
+	// 启动优化版工作处理器（新增）
+	go func() {
+		if err := optimizedFeedWorker.Start(ctx); err != nil {
+			logger.WithError(err).Error("Optimized feed worker stopped with error")
+		}
+	}()
+
 	// 初始化处理器
 	userHandler := handlers.NewUserHandler(userService, cfg.JWT.Secret)
 	feedHandler := handlers.NewFeedHandler(feedService, likeService, commentService)
+
+	// 初始化优化版处理器（新增）
+	optimizedFeedHandler := handlers.NewOptimizedFeedHandler(optimizedFeedService, activityService, cacheStrategyService, recoveryService, logger)
 
 	// 设置Gin模式
 	if cfg.Server.Mode == "release" {
@@ -144,7 +164,7 @@ func main() {
 			users.GET("/:id/following", userHandler.GetFollowing)
 		}
 
-		// 需要认证的路由
+		// 需要认证的路由（原版API）
 		protected := api.Group("")
 		protected.Use(middleware.NewJWTAuth(&middleware.JWTConfig{Secret: cfg.JWT.Secret}))
 		{
@@ -153,7 +173,7 @@ func main() {
 			protected.POST("/users/follow", userHandler.Follow)
 			protected.DELETE("/users/unfollow/:id", userHandler.Unfollow)
 
-			// Feed相关
+			// Feed相关（原版）
 			protected.POST("/posts", feedHandler.CreatePost)
 			protected.GET("/feed", feedHandler.GetFeed)
 			protected.GET("/users/:id/posts", feedHandler.GetUserPosts)
@@ -167,6 +187,13 @@ func main() {
 			protected.DELETE("/comments/:id", feedHandler.DeleteComment)
 			protected.GET("/posts/search", feedHandler.SearchPosts)
 		}
+	}
+
+	// 优化版API路由（新增）
+	apiV2 := router.Group("/api/v2")
+	{
+		jwtConfig := &middleware.JWTConfig{Secret: cfg.JWT.Secret}
+		optimizedFeedHandler.RegisterRoutes(apiV2, jwtConfig)
 	}
 
 	// 创建HTTP服务器
@@ -202,6 +229,10 @@ func main() {
 
 	if err := feedWorker.Stop(); err != nil {
 		logger.WithError(err).Error("Failed to stop feed worker")
+	}
+
+	if err := optimizedFeedWorker.Stop(ctx); err != nil {
+		logger.WithError(err).Error("Failed to stop optimized feed worker")
 	}
 
 	logger.Info("Server exited")
