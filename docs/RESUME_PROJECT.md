@@ -24,9 +24,9 @@ Go 1.21 / Gin / PostgreSQL / Redis / Apache Kafka / GORM / Docker / Kubernetes
 
 - 使用 Redis Sorted Set 存储用户 Timeline，以时间戳作为 score 实现高效的时间倒序排列；采用 `ZRevRangeByScore` 配合游标（cursor-based pagination）替代传统 offset 分页，避免深度分页的 O(N) 性能退化，大数据量分页性能提升 90%。通过 Pipeline 批量操作将多用户 Timeline 写入合并为单次网络往返，并自动裁剪 Timeline 至 1000 条防止内存膨胀。
 
-**3. 设计双层缓存策略与用户活跃度驱动的动态缓存管理**
+**3. 基于 Redis Sorted Set 的 Timeline 缓存与用户活跃度驱动的动态缓存管理**
 
-- 构建 Redis 缓存 + DB 两级存储架构，Redis 层分为 Feed 结果缓存（JSON 序列化，按用户+游标维度缓存整页结果）和 Timeline 结构缓存（Sorted Set，按时间戳排序的帖子ID集合）。引入用户活跃度评分系统（基于登录、发帖、点赞、评论等行为加权计算，带指数时间衰减），动态调整缓存 TTL 与容量：活跃用户 Timeline 缓存 7天 / 最多 1000 条，非活跃用户缓存 2小时 / 最多 200 条，VIP 用户缓存 30天。缓存未命中时自动降级到 DB 拉模式并异步回填缓存，定时后台任务自动清理非活跃用户冗余缓存，活跃用户缓存命中率达 95%+。
+- 使用 Redis Sorted Set 作为 Timeline 缓存层，DB 作为持久存储层。引入用户活跃度评分系统（基于登录、发帖、点赞、评论等行为加权计算，带指数时间衰减），动态调整缓存 TTL 与容量：活跃用户 Timeline 缓存 7天 / 最多 1000 条，非活跃用户缓存 2小时 / 最多 200 条，VIP 用户缓存 30天。缓存未命中时自动降级到 DB 拉模式并异步回填缓存，定时后台任务自动清理非活跃用户冗余缓存，活跃用户缓存命中率达 95%+。
 
 **4. 基于 Kafka 的异步事件驱动架构**
 
@@ -187,10 +187,9 @@ if len(timelineItems) > 0 {
 
 | 层级 | 状态 | 行为 |
 |------|------|------|
-| Redis Feed 结果缓存 | 命中 | JSON 反序列化直接返回，延迟 < 5ms |
-| Redis Timeline 缓存 | 命中 | 从 Sorted Set 读取帖子ID，再批量查帖子详情 |
-| Redis 缓存 | 未命中/宕机 | 降级到拉模式 |
-| 拉模式 DB 查询 | 正常 | 聚合关注者帖子，延迟 50-200ms，异步回填缓存 |
+| Redis Timeline 缓存 | 命中 | 从 Sorted Set 读取帖子ID，再批量查帖子详情，延迟 < 10ms |
+| Redis Timeline 缓存 | 未命中/宕机 | 降级到拉模式 |
+| 拉模式 DB 查询 | 正常 | 聚合关注者帖子，延迟 50-200ms，异步回填 Redis 缓存 |
 | 拉模式 DB 查询 | 也失败 | 返回错误，前端展示兜底内容 |
 
 **对写入的影响：**
