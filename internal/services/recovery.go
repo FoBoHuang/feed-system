@@ -52,6 +52,7 @@ type DistributionStatus struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
+// todo
 // RecoverPendingDistributions 恢复待处理的分发任务
 func (s *RecoveryService) RecoverPendingDistributions(ctx context.Context) error {
 	s.logger.Info("Starting recovery of pending distributions")
